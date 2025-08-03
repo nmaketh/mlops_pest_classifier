@@ -31,7 +31,7 @@ Watch a comprehensive walkthrough of the entire pipeline, demonstrating its func
 Watch the Demo on YouTube
 
 🌐 Live Application
-Access the interactive Streamlit application deployed on the cloud:
+Access the interactive Streamlit application deployed on the cloud: https://mlopspestclassifier-7ksxnvfahqf9zpmbwpdwyj.streamlit.app/
 
 Access the Live App Here
 
