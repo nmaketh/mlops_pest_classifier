@@ -42,7 +42,7 @@ Clone the Repository:
 
 Bash
 
-git clone https://github.com/your-username/project-name.git
+git clone https:https://github.com/nmaketh/mlops_pest_classifier
 cd project-name
 Create & Activate Virtual Environment (Recommended):
 
@@ -79,15 +79,20 @@ python src/app.py  # Adjust if your main API file has a different name
 Launch the Streamlit UI:
 Open your web browser and navigate to the local address provided by Streamlit (usually http://localhost:8501).
 
+
 Bash
 
+
 streamlit run ui/app.py # Assuming your Streamlit app is in ui/app.py
+
 📂 Project Structure
+
 Project_name/
 │
 ├── README.md                          # Project documentation
 │
 ├── notebook/
+
 │   └── 01_image_model_training_evaluation.ipynb # Detailed model development & evaluation
 │
 ├── src/
@@ -105,6 +110,7 @@ Project_name/
 │
 └── models/
     └── pest_classifier1.h5            # Saved Keras/TensorFlow trained model
+    
 📊 Model & Evaluation Highlights
 The 01_image_model_training_evaluation.ipynb notebook comprehensively details:
 
