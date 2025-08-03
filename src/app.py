@@ -1,7 +1,6 @@
-# mlops_pest_classifier/src/app.py
-
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware # <--- ADD THIS IMPORT
 from pydantic import BaseModel
 import uvicorn
 import os
@@ -11,6 +10,7 @@ import shutil
 from typing import List, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import tensorflow as tf # <--- ADD THIS IMPORT (It's used in _perform_retraining but not imported)
 
 # Import from our local modules
 from prediction import predict_image # This also lazy-loads the model and labels
@@ -25,6 +25,27 @@ app = FastAPI(
     description="API for classifying agricultural pests from images and managing model retraining.",
     version="1.0.0"
 )
+
+# --- ADD CORS MIDDLEWARE HERE ---
+origins = [
+    "http://localhost",
+    "http://localhost:8501",
+    "https://mlopspestclassifier-7ksxnvfahqf9zpmbwpdwyj.streamlit.app/", # REPLACE with your actual Streamlit Cloud app URL
+    # If you have other domains where your Streamlit app might run, add them here.
+    # For initial testing, you could use a wildcard, but it's less secure for production:
+    # "https://*.streamlit.app", # Allows all Streamlit Cloud apps (less secure)
+    # "*" # Allows all origins (NOT recommended for production)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"], # Allows all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"], # Allows all headers
+)
+# --- END CORS MIDDLEWARE ADDITION ---
+
 
 # --- Global Paths and Directories ---
 NEW_TRAINING_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'new_training_data')
@@ -209,21 +230,21 @@ def _perform_retraining():
                 # Assuming the base model is the first layer of the existing model
                 base_model_input = model.input
                 # Rebuild the top layers from the base model's output
-                base_model_output = model.layers[-4].output # Adjust index if your functional model structure is different
-                                                             # This is an approximation; could be `model.layers[0].output` if base_model is direct input.
-                                                             # A more robust way is to rebuild the model using `src.model.build_new_model` if structure changes.
+                # This needs to be carefully adjusted based on your 'model.py' -> 'build_new_model' structure.
+                # A safer approach is to directly call build_new_model with the correct number of classes.
+                # For example, if your build_new_model creates a functional model from MobileNetV2 base:
+                # model_base = model.layers[0] # Assuming MobileNetV2 is the first layer
+                # x = model_base.output
+                # x = tf.keras.layers.GlobalAveragePooling2D()(x)
+                # x = tf.keras.layers.Dense(128, activation='relu')(x)
+                # x = tf.keras.layers.Dropout(0.3)(x)
+                # predictions = tf.keras.layers.Dense(num_classes, activation='softmax')(x)
+                # model = tf.keras.Model(inputs=model_base.input, outputs=predictions)
 
-                # Freeze all base layers for retraining new head or existing head with new classes
-                for layer in model.layers[:-3]: # assuming last 3 are GAP, Dense, Dropout
-                    layer.trainable = False
-                
-                x = tf.keras.layers.GlobalAveragePooling2D()(base_model_output)
-                x = tf.keras.layers.Dense(128, activation='relu')(x) # Re-add intermediate dense layer if any
-                x = tf.keras.layers.Dropout(0.3)(x) # Re-add dropout if any
-                predictions = tf.keras.layers.Dense(num_classes, activation='softmax')(x)
-                
-                # Recreate the model with the updated output layer
-                model = tf.keras.Model(inputs=base_model_input, outputs=predictions)
+                # A more robust way to ensure the model structure is correct for new classes:
+                # You might need to adjust 'fine_tune_layers' if you are doing full retraining.
+                logging.info("Rebuilding model with new number of classes via build_new_model.")
+                model = build_new_model(num_classes=num_classes) # Assuming this function handles the freezing internally
                 
                 # Recompile with a potentially lower learning rate for fine-tuning the head
                 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001), # Lower learning rate
@@ -232,9 +253,9 @@ def _perform_retraining():
                 logging.info("Model recompiled with adjusted output layer.")
             
         except Exception as e:
-            logging.warning(f"Could not load existing model or adjust it ({e}). Building a new one from scratch for retraining (less ideal).", exc_info=True)
+            logging.warning(f"Could not load existing model or adapt it ({e}). Building a new one from scratch for retraining (less ideal).", exc_info=True)
             # If the model couldn't be loaded or adapted, build a new one from scratch
-            model = build_new_model(num_classes=num_classes, fine_tune_layers=None) # Build with fresh weights
+            model = build_new_model(num_classes=num_classes) # Build with fresh weights
             logging.info("Built a new model from scratch for retraining.")
 
         # Train the model with new data
